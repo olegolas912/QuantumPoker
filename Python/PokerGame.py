@@ -6,13 +6,15 @@
 from os.path import dirname, abspath
 import sys
 sys.path.append(dirname(abspath(__file__)))
-from Python.interactive import InteractiveContainer
-from Python.Board import Board
-from Python.Buttons import InteractiveButtons
-from Python.helpFiles import distributeGates
+from interactive import InteractiveContainer
+from Board import Board
+from Buttons import InteractiveButtons
+from helpFiles import distributeGates
 from numpy import amax, array, sum, empty, append, argwhere, copy, any, in1d, argsort, zeros
-from qiskit import execute, Aer
 from time import time
+from qiskit import QuantumCircuit, ClassicalRegister, QuantumRegister
+from qiskit import transpile
+from qiskit_aer import Aer
 
 
 class PokerGame:
@@ -225,7 +227,9 @@ class PokerGame:
 
             board = self.boards[i]
             board.qc.measure(board.q, board.c)
-            counts = execute(board.qc, simulator, shots=1).result().get_counts(board.qc)
+            transpiled_circuit = transpile(board.qc, simulator)
+            job = simulator.run(transpiled_circuit, shots=1)
+            counts = job.result().get_counts()
             for bitStr in list(counts.keys())[0]:
                 if bitStr == "1":
                     scores[i] += 1
@@ -401,21 +405,21 @@ class PokerGame:
         self.interactive.fig.canvas.draw()
 
     def mouseClick(self, qubit):
-        """
-        Logic for mouseclick
-        :param qubit: the target qubit
-        :return: Nothing
-        """
         if self.gameOver:
             return
 
         isGate, button = self.interactiveButtons.mouseClick(qubit)
         if isGate:
-            self.playerGates[self.player][button] -= 1
-            if self.playerGates[self.player][button] == 0:
-                del self.playerGates[self.player][button]
-                self.interactive.disconnectGate(button)
-            self.interactive.updatePlayerGate(self.playerGates[self.player], hover=True, showZero=True)
+            # Проверяем, есть ли такой гейт у игрока
+            if button in self.playerGates[self.player]:
+                self.playerGates[self.player][button] -= 1
+                if self.playerGates[self.player][button] == 0:
+                    del self.playerGates[self.player][button]
+                self.interactive.updatePlayerGate(self.playerGates[self.player], hover=True, showZero=True)
+            else:
+                # Либо пропустить, либо вывести сообщение
+                self.inform(f"You do not have the gate '{button}' available.")
+
         self.interactive.updateBoard()
 
     def getPlayer(self):
